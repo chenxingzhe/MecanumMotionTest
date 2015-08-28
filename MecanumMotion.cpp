@@ -33,9 +33,9 @@ using namespace std;
 #define PI 3.1415926
 #endif
 
-#define EPSMEC 6
+#define EPSMEC 10
 #define pp 40
-#define vs 50
+#define vs 30
 // camera Module
 
 //#include "calclandmark.h"
@@ -429,13 +429,15 @@ void MecanumMotion::doMotionControlWithCamera(){
 			<<detxc1 << '\t' << detyc1 << '\t' << detw1 * 180 / PI << endl;
 		//outfile //<< m_cal_time_step
 			//<< "odocap:" << detxc << '\t' << detyc << '\t' << detw * 180 / PI << endl;
-		//Sleep(10);
+		Sleep(10);
 		validCameraPose = false;
+
 	}
 	bool initializedFlag = false;
 	bool finish = true;
 	int count = 0;
 	double dx, dy, dw;
+	bool kk = false;
 	while (DataProcessFlag == 1)
 	{
 		if (!validCameraPose){
@@ -449,13 +451,14 @@ void MecanumMotion::doMotionControlWithCamera(){
 			if (!infile.is_open()) {
 				infile.open("Camera_Capture.txt", ios::in);
 			}
-
+			cout << "¶ÁÈ¡Êý¾Ý" << endl;
 			if (!(infile >> dx >> dy >> dw))
 			{
 				cout << "end" << endl;
 				break;
 
 			}
+			kk = true;
 
 
 			//cout << dx << " " << dy << " " << dw<< endl;
@@ -561,6 +564,13 @@ void MecanumMotion::doMotionControlWithCamera(){
 					if (flag)
 						break;
 				}
+				if (kk==false)
+				{
+					finish = true;
+				}
+				kk = false;
+				
+					
 				//cout << "error" << endl;
 				//finish = true;
 				//continue;
