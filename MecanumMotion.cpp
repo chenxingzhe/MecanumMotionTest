@@ -35,7 +35,9 @@ using namespace std;
 
 #define EPSMEC 10
 #define pp 40
-#define vs 30
+#define vs 100
+#define num 3
+double sleeptime = 1;
 // camera Module
 
 //#include "calclandmark.h"
@@ -50,6 +52,8 @@ extern bool validCameraPose;
 extern double xpos;
 extern double ypos;
 extern double cita;
+double worldv=0, worldw=0;
+double vthre=10, wthre=PI/80;
 //////////////////////////////////////////////////////////////////////////
 // define the callback function
 void SetSpeedCallBack(const Home_RobotSpeed &speed)
@@ -88,7 +92,100 @@ void OdometerPublisher(neat::Odometer& odometer)
 	odometerData.set_cycle(odometer.cycle);
 	SubPubManager::Instance()->m_odometer.GetPublisher()->publish(odometerData);
 }
+void speedSlowIncrease(Home_RobotSpeed &cur_speed, double v)
+{
+	cout << "world:" << worldv << " ev:" << v << endl;
+	//worldw = 0;
+	if (worldv == v)
+	{
+		cur_speed.set_vx(worldv);
+		cur_speed.set_vy(0);
+		cur_speed.set_w(worldw);
+		SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+		Sleep(sleeptime);
+	}
+			
+	    if (worldv < v)
+		{
+			worldv = worldv + vthre;
+			cur_speed.set_vx(worldv);
+			cur_speed.set_vy(0);
+			cur_speed.set_w(worldw);
+			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+			Sleep(sleeptime);
+		}
+		else
+		{
+			worldv = worldv - vthre;
+			cur_speed.set_vx(worldv);
+			cur_speed.set_vy(0);
+			cur_speed.set_w(worldw);
+			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+			Sleep(sleeptime);
+		}
+	
+}
+void citaSlowIncrease(Home_RobotSpeed &cur_speed, double w)
+{
+	
+	worldw = w;
+	speedSlowIncrease(cur_speed, 0);
+	/*if (worldw == w)
+	{
+	speedSlowIncrease(cur_speed, 0);
 
+	}
+	if (worldw < w)
+	{
+	worldw = worldw + wthre;
+	speedSlowIncrease(cur_speed, 0);
+	}
+	else
+	{
+	worldw = worldw - wthre;
+	speedSlowIncrease(cur_speed, 0);
+	}*/
+}
+int bigCita(Home_RobotSpeed &cur_speed, double dw,double w)
+{
+	double detx, dety, detw, detxc, detyc;
+	detw = cita / 180 * PI - w;
+	detxc = detx*cos(-w) - dety*sin(-w);
+	detyc = detx*sin(-w) + dety*cos(-w);
+	if (detw > PI)
+		detw -= 2 * PI;
+	if (detw < -PI)
+		detw += 2 * PI;
+	double detw2 = -(dw - detw);
+	if (detw2 >= PI)
+		detw2 -= 2 * PI;
+	if (detw2 <= -PI)
+		detw2 += 2 * PI;
+	
+	if (fabs(detw2 * 180 / PI) > EPSMEC / 2)
+	{
+		if (detw2 < 0)
+		{
+			worldw = PI / 20;
+			cur_speed.set_vx(0);
+			cur_speed.set_vy(0);
+			cur_speed.set_w(worldw);
+			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+		}
+		else
+		{
+			worldw =- PI / 20;
+			cur_speed.set_vx(0);
+			cur_speed.set_vy(0);
+			cur_speed.set_w(worldw);
+			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+		}
+	}
+	if (detw2 * 180 / PI < EPSMEC / 2)
+		return 1;
+	return 0;
+
+}
 int refineOdometer(Home_RobotSpeed &cur_speed,Home_Odometer &cur_odo, double x, double y, double w, double dx, double dy)
 {
 	neat::Odometer odometerData;
@@ -143,7 +240,7 @@ int refineOdometer(Home_RobotSpeed &cur_speed,Home_Odometer &cur_odo, double x, 
 		}
 		if (flag)
 		{
-			if (fabs(detw2 * 180 / PI) > EPSMEC)
+			if (fabs(detw2 * 180 / PI) > EPSMEC/2)
 			{
 				if (detw2 < 0)
 				{
@@ -170,7 +267,7 @@ int refineOdometer(Home_RobotSpeed &cur_speed,Home_Odometer &cur_odo, double x, 
 		}
 		else
 		{
-			if (fabs(detw2 * 180 / PI) > EPSMEC)
+			if (fabs(detw2 * 180 / PI) > EPSMEC/2)
 			{
 				if (detw2 < 0)
 				{
@@ -263,62 +360,76 @@ int refineCamera(Home_RobotSpeed &cur_speed, Home_Odometer &cur_odo, double x, d
 	cout << "角度差："<<detw2 <<"vx:"<<vx<<"vy:"<<vy<< endl;
 	if (flag)
 	{
-		if (fabs(detw2 * 180 / PI) > EPSMEC)
+		if (fabs(detw2 * 180 / PI) > EPSMEC/3)
 		{
 			if (detw2 < 0)
 			{
 				
-				cur_speed.set_vx(0);
+				worldv = 0;
+				worldw = PI / pp;
+				cur_speed.set_vx(worldv);
 				cur_speed.set_vy(0);
-				cur_speed.set_w(PI / pp);
+				cur_speed.set_w(worldw);
 				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 			}
 			else
 			{
-				cur_speed.set_vx(0);
+				worldv = 0;
+				worldw = -PI / pp;
+				cur_speed.set_vx(worldv);
 				cur_speed.set_vy(0);
-				cur_speed.set_w(-PI / pp);
+				cur_speed.set_w(worldw);
 				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 			}
 		}
 		else
 		{
-			cur_speed.set_vx(-1*vs);
+			//speedSlowIncrease(cur_speed, -50);
+			worldv = -50;
+			worldw = 0;
+			cur_speed.set_vx(worldv);
 			cur_speed.set_vy(0);
-			cur_speed.set_w(0);
+			cur_speed.set_w(worldw);
 			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 		}
 	}
 	else
 	{
-		if (fabs(detw2 * 180 / PI) > EPSMEC)
+		if (fabs(detw2 * 180 / PI) > EPSMEC/3)
 		{
 			if (detw2 < 0)
 			{
-				cur_speed.set_vx(0);
+				worldv = 0;
+				worldw = PI / pp;
+				cur_speed.set_vx(worldv);
 				cur_speed.set_vy(0);
-				cur_speed.set_w(PI / pp);
+				cur_speed.set_w(worldw);
 				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 			}
 			else
 			{
-				cur_speed.set_vx(0);
+				worldv = 0;
+				worldw = -PI / pp;
+				cur_speed.set_vx(worldv);
 				cur_speed.set_vy(0);
-				cur_speed.set_w(-PI / pp);
+				cur_speed.set_w(worldw);
 				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 			}
 		}
 		else
 		{
-			cur_speed.set_vx(vs);
+			//speedSlowIncrease(cur_speed, 50);
+			worldv = 50;
+			worldw = 0;
+			cur_speed.set_vx(worldv);
 			cur_speed.set_vy(0);
-			cur_speed.set_w(0);
+			cur_speed.set_w(worldw);
 			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 		}
 	}
 	
 	//cout << "error refine" << endl;
-	if (fabs(detxc - dx) < EPSMEC&&fabs(detyc - dy) < EPSMEC)
+	if (fabs(detxc - dx) < EPSMEC/2&&fabs(detyc - dy) < EPSMEC/2)
 	{
 		return 1;
 	}
@@ -429,7 +540,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 			<<detxc1 << '\t' << detyc1 << '\t' << detw1 * 180 / PI << endl;
 		//outfile //<< m_cal_time_step
 			//<< "odocap:" << detxc << '\t' << detyc << '\t' << detw * 180 / PI << endl;
-		Sleep(10);
+		Sleep(5);
 		validCameraPose = false;
 
 	}
@@ -438,15 +549,24 @@ void MecanumMotion::doMotionControlWithCamera(){
 	int count = 0;
 	double dx, dy, dw;
 	bool kk = false;
+	double prex=0, prey=0, prew=0;
+	double sumx = 0, sumy = 0, sumw = 0;
+	queue<double> q;
+	while (!q.empty())
+	{
+		q.pop();
+	}
+	for (int i = 0; i < 15; i++)
+	{
+		q.push(0);
+	}
+	double detw2 = 0;
 	while (DataProcessFlag == 1)
 	{
-		if (!validCameraPose){
-			//cout << "无有效数据！" << endl;
-			Sleep(1);
-			continue;
-		}
+		
 		if (finish)
 		{
+			
 			static ifstream infile;
 			if (!infile.is_open()) {
 				infile.open("Camera_Capture.txt", ios::in);
@@ -455,15 +575,49 @@ void MecanumMotion::doMotionControlWithCamera(){
 			if (!(infile >> dx >> dy >> dw))
 			{
 				cout << "end" << endl;
-				break;
+				infile.close();
+				infile.open("Camera_Capture.txt", ios::in);
+				infile >> dx >> dy >> dw;
 
 			}
+			dw = dw / 180 * PI;
+			/*sumx -= q.front();
+			q.pop();
+			sumy -= q.front();
+			q.pop();
+			sumw -= q.front();
+			q.pop();
+			sumx += dx;
+			sumy += dy;
+			sumw += dw;
+			q.push(dx);
+			q.push(dy);
+			q.push(dw);
+			dx = sumx / 5;
+			dy = sumy / 5;
+			dw = sumw / 5;*/
 			kk = true;
-
+			if (fabs(detxc1 - dx) < EPSMEC * num && fabs(detyc1 - dy) < EPSMEC * num &&detw2 * 180 / PI < EPSMEC * num/3)
+			{
+				finish = true;
+				continue;
+			}
+			static ofstream outfile;
+			if (!outfile.is_open()) {
+				cout << "not open" << endl;
+				outfile.open("error.txt", ios::out);
+			}
+			outfile //<< m_cal_time_step
+				<< dx << '\t' << dy << '\t' << dw  << endl;
 
 			//cout << dx << " " << dy << " " << dw<< endl;
-			dw = dw / 180 * PI;
+			//dw = dw / 180 * PI;
 			finish = false;
+		}
+		if (!validCameraPose){
+			//cout << "无有效数据！" << endl;
+			Sleep(1);
+			continue;
 		}
 		//里程计
 		/*odoCap.GetCurOdometry(odometerData);
@@ -513,7 +667,23 @@ void MecanumMotion::doMotionControlWithCamera(){
 			detw1 -= 2 * PI;
 		if (detw1 < -PI)
 			detw1 += 2 * PI;
-		double detw2 = -(dw - detw1);//按照里程计走
+		double dw2 = 0;
+		double vx = dx - detxc1;
+		double vy = dy - detyc1;
+		if (vx > 0 && vy > 0)
+			dw2 = atan(fabs(vy / vx));
+		else if (vx<0 && vy > 0)
+			dw2 = PI - atan(fabs(vy / vx));
+		else if (vx > 0 && vy < 0)
+			dw2 = -atan(fabs(vy / vx));
+		else if (vx < 0 && vy < 0)
+			dw2 = atan(fabs(vy / vx)) - PI;
+		if (vx == 0 && vy>0)
+			dw2 = PI / 2;
+		if (vx == 0 && vy < 0)
+			dw2 = -PI / 2;
+		detw2 = -(dw2 - detw1);//走斜边
+		//double detw2 = -(dw - detw1);//按照里程计走
 		if (detw2 >= PI)
 			detw2 -= 2 * PI;
 		if (detw2 <= -PI)
@@ -531,7 +701,28 @@ void MecanumMotion::doMotionControlWithCamera(){
 
 			<< endl;*/
 	
-		if (fabs(detxc1 - dx) < EPSMEC&&fabs(detyc1 - dy) < EPSMEC&&fabs(detw2 * 180 / PI) < EPSMEC)
+		/*if (fabs(detxc1 - dx) < EPSMEC&&fabs(detyc1 - dy) < EPSMEC&&fabs(detw2 * 180 / PI) < EPSMEC)
+		{
+			finish = true;
+		}*/
+		if (detw2 * 180 / PI > EPSMEC * 3)
+		{
+			
+			while (1)
+			{
+				if (!validCameraPose){
+					//cout << "无有效数据！" << endl;
+					Sleep(1);
+					continue;
+				}
+				int flag = bigCita(cur_speed, dw2, w1);
+				validCameraPose = false;
+				if (flag)
+					break;
+			}
+			continue;
+		}
+		if (fabs(detxc1 - dx) < EPSMEC&&fabs(detyc1 - dy) < EPSMEC)
 		{
 			finish = true;
 		}
@@ -539,10 +730,11 @@ void MecanumMotion::doMotionControlWithCamera(){
 		{
 
 
-			cout <<"误差："<< fabs(detxc1 - dx) << " " << fabs(detyc1 - dy) << endl;
+			cout << "误差：" << fabs(detxc1 - dx) << " " << fabs(detyc1 - dy) <<" "<< fabs(detw2 * 180 / PI) << endl;
+			//cout << "dx:" << dx << "dy:" << dy << "detxc1:" << detxc1 << "detyc1:" << detyc1;
 
 			//||fabs(detxc - dx) > EPS*10||fabs(detyc - dy) > EPS*10
-			if (fabs(detxc1 - dx) > EPSMEC * 3 || fabs(detyc1 - dy) > EPSMEC * 3)
+			if (fabs(detxc1 - dx) > EPSMEC * (num+1) || fabs(detyc1 - dy) > EPSMEC * (num+1))
 			{
 
 				/*
@@ -575,14 +767,14 @@ void MecanumMotion::doMotionControlWithCamera(){
 				//finish = true;
 				//continue;
 			}
-			if (fabs(detw2 * 180 / PI) < EPSMEC)
+			if (fabs(detw2 * 180 / PI) < EPSMEC/3)
 			{
 				//不能使用detxc - dx的正负判断~
-
-				cur_speed.set_vx(vs);
+				speedSlowIncrease(cur_speed, vs);
+				/*cur_speed.set_vx(vs);
 				cur_speed.set_vy(0);
 				cur_speed.set_w(0);
-				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
 
 
 
@@ -592,17 +784,20 @@ void MecanumMotion::doMotionControlWithCamera(){
 
 				if (detw2<0)
 				{
-					cur_speed.set_vx(0);
+					/*cur_speed.set_vx(0);
 					cur_speed.set_vy(0);
 					cur_speed.set_w(PI / 20);
-					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
+					citaSlowIncrease(cur_speed, PI / pp);
+
 				}
 				else
 				{
-					cur_speed.set_vx(0);
+					/*cur_speed.set_vx(0);
 					cur_speed.set_vy(0);
 					cur_speed.set_w(-PI / 20);
-					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
+					citaSlowIncrease(cur_speed, -PI / pp);
 				}
 
 			}
