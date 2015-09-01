@@ -37,7 +37,8 @@ using namespace std;
 #define pp 40
 #define vs 100
 #define num 3
-double sleeptime = 1;
+double sleeptime = 2.5;
+
 // camera Module
 
 //#include "calclandmark.h"
@@ -53,7 +54,7 @@ extern double xpos;
 extern double ypos;
 extern double cita;
 double worldv=0, worldw=0;
-double vthre=10, wthre=PI/80;
+double vthre=5, wthre=PI/80;
 //////////////////////////////////////////////////////////////////////////
 // define the callback function
 void SetSpeedCallBack(const Home_RobotSpeed &speed)
@@ -129,7 +130,7 @@ void citaSlowIncrease(Home_RobotSpeed &cur_speed, double w)
 {
 	
 	worldw = w;
-	speedSlowIncrease(cur_speed, 0);
+	speedSlowIncrease(cur_speed, 50);
 	/*if (worldw == w)
 	{
 	speedSlowIncrease(cur_speed, 0);
@@ -148,6 +149,7 @@ void citaSlowIncrease(Home_RobotSpeed &cur_speed, double w)
 }
 int bigCita(Home_RobotSpeed &cur_speed, double dw,double w)
 {
+	cout << "big cita" << endl; 
 	double detx, dety, detw, detxc, detyc;
 	detw = cita / 180 * PI - w;
 	detxc = detx*cos(-w) - dety*sin(-w);
@@ -161,13 +163,13 @@ int bigCita(Home_RobotSpeed &cur_speed, double dw,double w)
 		detw2 -= 2 * PI;
 	if (detw2 <= -PI)
 		detw2 += 2 * PI;
-	
+	worldv = 0;
 	if (fabs(detw2 * 180 / PI) > EPSMEC / 2)
 	{
 		if (detw2 < 0)
 		{
 			worldw = PI / 20;
-			cur_speed.set_vx(0);
+			cur_speed.set_vx(worldv);
 			cur_speed.set_vy(0);
 			cur_speed.set_w(worldw);
 			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
@@ -175,7 +177,7 @@ int bigCita(Home_RobotSpeed &cur_speed, double dw,double w)
 		else
 		{
 			worldw =- PI / 20;
-			cur_speed.set_vx(0);
+			cur_speed.set_vx(worldv);
 			cur_speed.set_vy(0);
 			cur_speed.set_w(worldw);
 			SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
@@ -705,7 +707,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 		{
 			finish = true;
 		}*/
-		if (detw2 * 180 / PI > EPSMEC * 3)
+		if (fabs(detw2 * 180 / PI) > EPSMEC * 3)
 		{
 			
 			while (1)
