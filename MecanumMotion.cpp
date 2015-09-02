@@ -15,7 +15,7 @@ USING_NAMESPACE_NEAT_COMMON_ALL();
 #include "datatype/speeds.h"
 #include "datatype/odometer.h"
 #include <windows.h>
-
+#include "CircleFit.h"
 // Other Needed
 #include <Windows.h>
 #include <fstream>
@@ -482,7 +482,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 	SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 	//cin >> flag;
 
-	while (DataProcessFlag != 0 && DataProcessFlag != 1);
+	while (DataProcessFlag != 0 && DataProcessFlag != 1 && DataProcessFlag != 2);
 
 	std::cout << "It's OK, just go on !" << std::endl;
 	/// 5. Wait Node to exit
@@ -565,10 +565,10 @@ void MecanumMotion::doMotionControlWithCamera(){
 	double detw2 = 0;
 	while (DataProcessFlag == 1)
 	{
-		
+
 		if (finish)
 		{
-			
+
 			static ifstream infile;
 			if (!infile.is_open()) {
 				infile.open("Camera_Capture.txt", ios::in);
@@ -599,7 +599,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 			dy = sumy / 5;
 			dw = sumw / 5;*/
 			kk = true;
-			if (fabs(detxc1 - dx) < EPSMEC * num && fabs(detyc1 - dy) < EPSMEC * num &&detw2 * 180 / PI < EPSMEC * num/3)
+			if (fabs(detxc1 - dx) < EPSMEC * num && fabs(detyc1 - dy) < EPSMEC * num &&detw2 * 180 / PI < EPSMEC * num / 3)
 			{
 				finish = true;
 				continue;
@@ -610,7 +610,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 				outfile.open("error.txt", ios::out);
 			}
 			outfile //<< m_cal_time_step
-				<< dx << '\t' << dy << '\t' << dw  << endl;
+				<< dx << '\t' << dy << '\t' << dw << endl;
 
 			//cout << dx << " " << dy << " " << dw<< endl;
 			//dw = dw / 180 * PI;
@@ -630,29 +630,29 @@ void MecanumMotion::doMotionControlWithCamera(){
 		detyc = detx*sin(-w) + dety*cos(-w);
 
 		if (detw > PI)
-			detw -= 2 * PI;
+		detw -= 2 * PI;
 		if (detw < -PI)
-			detw += 2 * PI;
+		detw += 2 * PI;
 		double vx = dx - detxc;
 		double vy = dy - detyc;
 		double dw2 = 0;
 		if (vx>0 && vy > 0)
-			dw2 = atan(fabs(vy / vx));
+		dw2 = atan(fabs(vy / vx));
 		else if (vx<0 && vy > 0)
-			dw2 = PI - atan(fabs(vy / vx));
+		dw2 = PI - atan(fabs(vy / vx));
 		else if (vx>0 && vy < 0)
-			dw2 = -atan(fabs(vy / vx));
+		dw2 = -atan(fabs(vy / vx));
 		else if (vx<0 && vy < 0)
-			dw2 = atan(fabs(vy / vx)) - PI;
+		dw2 = atan(fabs(vy / vx)) - PI;
 		if (vx == 0 && vy>0)
-			dw2 = PI / 2;
+		dw2 = PI / 2;
 		if (vx == 0 && vy<0)
-			dw2 = -PI / 2;
+		dw2 = -PI / 2;
 		double detw2 = -(dw - detw);//按照里程计走
 		if (detw2 >= PI)
-			detw2 -= 2 * PI;
+		detw2 -= 2 * PI;
 		if (detw2 <= -PI)
-			detw2 += 2 * PI;
+		detw2 += 2 * PI;
 		//double detw2 = -(dw2 - detw);//走斜边
 		cout << dw << " " << detw << endl;*/
 		//视觉里程计
@@ -692,24 +692,24 @@ void MecanumMotion::doMotionControlWithCamera(){
 			detw2 += 2 * PI;
 		/*	static ofstream outfile;
 		if (!outfile.is_open()) {
-			outfile.open("error.txt", ios::out);
+		outfile.open("error.txt", ios::out);
 		}
 		outfile //<< m_cal_time_step
-			<< fabs(detxc - dx)
-			<< '\t'
-			<< fabs(detyc - dy)
-			<< '\t'
-			<< fabs(detw2 * 180 / PI)
+		<< fabs(detxc - dx)
+		<< '\t'
+		<< fabs(detyc - dy)
+		<< '\t'
+		<< fabs(detw2 * 180 / PI)
 
-			<< endl;*/
-	
+		<< endl;*/
+
 		/*if (fabs(detxc1 - dx) < EPSMEC&&fabs(detyc1 - dy) < EPSMEC&&fabs(detw2 * 180 / PI) < EPSMEC)
 		{
-			finish = true;
+		finish = true;
 		}*/
 		if (fabs(detw2 * 180 / PI) > EPSMEC * 3)
 		{
-			
+
 			while (1)
 			{
 				if (!validCameraPose){
@@ -732,11 +732,11 @@ void MecanumMotion::doMotionControlWithCamera(){
 		{
 
 
-			cout << "误差：" << fabs(detxc1 - dx) << " " << fabs(detyc1 - dy) <<" "<< fabs(detw2 * 180 / PI) << endl;
+			cout << "误差：" << fabs(detxc1 - dx) << " " << fabs(detyc1 - dy) << " " << fabs(detw2 * 180 / PI) << endl;
 			//cout << "dx:" << dx << "dy:" << dy << "detxc1:" << detxc1 << "detyc1:" << detyc1;
 
 			//||fabs(detxc - dx) > EPS*10||fabs(detyc - dy) > EPS*10
-			if (fabs(detxc1 - dx) > EPSMEC * (num+1) || fabs(detyc1 - dy) > EPSMEC * (num+1))
+			if (fabs(detxc1 - dx) > EPSMEC * (num + 1) || fabs(detyc1 - dy) > EPSMEC * (num + 1))
 			{
 
 				/*
@@ -753,23 +753,23 @@ void MecanumMotion::doMotionControlWithCamera(){
 						Sleep(1);
 						continue;
 					}
-					int flag=refineCamera(cur_speed, cur_odo, x1, y1, w1, dx, dy);
+					int flag = refineCamera(cur_speed, cur_odo, x1, y1, w1, dx, dy);
 					validCameraPose = false;
 					if (flag)
 						break;
 				}
-				if (kk==false)
+				if (kk == false)
 				{
 					finish = true;
 				}
 				kk = false;
-				
-					
+
+
 				//cout << "error" << endl;
 				//finish = true;
 				//continue;
 			}
-			if (fabs(detw2 * 180 / PI) < EPSMEC/3)
+			if (fabs(detw2 * 180 / PI) < EPSMEC / 3)
 			{
 				//不能使用detxc - dx的正负判断~
 				speedSlowIncrease(cur_speed, vs);
@@ -784,7 +784,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 			else
 			{
 
-				if (detw2<0)
+				if (detw2 < 0)
 				{
 					/*cur_speed.set_vx(0);
 					cur_speed.set_vy(0);
@@ -805,7 +805,67 @@ void MecanumMotion::doMotionControlWithCamera(){
 			}
 		}
 		validCameraPose = false;
-}
+	}
+	if (DataProcessFlag == 2)
+	{
+		
+		static ofstream outfile;
+		double coordinate[3][500];
+		vector<PointOnCircle> points;
+		if (!outfile.is_open()) {
+			cout << "not open" << endl;
+			outfile.open("sss.txt", ios::out);
+		}
+		int count = 0;
+		int big = -1;
+		double comp=-9999;
+		bool f = false;
+		while (count < 400)
+		{
+			
+			if (!validCameraPose){
+				//cout << "无有效数据！" << endl;
+				Sleep(1);
+				continue;
+			}
+				cur_speed.set_vx(0);
+				cur_speed.set_vy(0);
+				cur_speed.set_w(PI / 20);
+				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);		
+			outfile << xpos << '\t' << ypos << '\t' << cita << endl;
+			coordinate[0][count] = xpos;
+			coordinate[1][count] = ypos;
+			coordinate[2][count] = cita;
+			points.push_back(PointOnCircle(xpos, ypos, cita/180*PI));
+			if (comp < xpos)
+			{
+				big = count;
+				comp = xpos;
+			}
+			validCameraPose = false;
+			count++;
+		}
+		cout << "complete!!" <<endl;
+		outfile.close();
+		cur_speed.set_vx(0);
+		cur_speed.set_vy(0);
+		cur_speed.set_w(0);
+		SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+		double A, B, R;
+		CircleFit circleFit;
+		cout << circleFit.ranSacCircleFit(points, A, B, R) << endl;
+		//printf("fit data num is %d, A = %.3f, B = %.3f, R = %.3f\n", num, A, B, R);
+		cout << "R:" << R << " jiao:" << coordinate[2][big] << endl;
+		ofstream Rfile;
+		if (!Rfile.is_open()) {
+			cout << "not open" << endl;
+			Rfile.open("Rjiao.txt", ios::out);
+		}
+		Rfile << R << '\t' << coordinate[2][big] << endl;
+		Rfile.close();
+
+
+	}
 	NODE.spin();
 
 	return;

@@ -374,8 +374,10 @@ bool CalcRTLandmark::Calc(Mat image, Mat &R, Mat &t,double &w)
 	double Ra = 190.9250321518893;
 	double jiao = 189.5 / 180 * PI;
 
-	t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
-	t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
+	//t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
+	//t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
+	t.at<double>(0, 0) = t.at<double>(0, 0);
+	t.at<double>(1, 0) = t.at<double>(1, 0);
 	double showscale = 1;
 	/*putText(value, string("Angle:") + double2str(w), Point(0, 50), CV_FONT_HERSHEY_COMPLEX, 1, cvScalar(200, 200, 200, 0));
 	putText(value, string("TransX:") + double2str(t.at<double>(0, 0)), Point(0, 100), CV_FONT_HERSHEY_COMPLEX, showscale, cvScalar(200, 200, 200, 0));

@@ -3,7 +3,8 @@
 #include <opencv2/xphoto.hpp>
 #include <windows.h>
 #include "calclandmark.h"
-
+#include <fstream>
+#include <iostream>
 USING_NAMESPACE_NEAT_COMMON_ALL();
 
 using namespace std;
@@ -21,7 +22,7 @@ double cita=0;
 
 int main()
 {
-	cout << "记录数据输入0，巡线走输入1，其他输入任意数：" << endl;
+	cout << "记录数据输入0，巡线走输入1，圆标定输入2，其他输入任意数：" << endl;
 	cin >> DataProcessFlag;
 
 	HANDLE handle1, handle2;
@@ -82,6 +83,12 @@ DWORD WINAPI getCameraPose(LPVOID lpParameter)
 	videoCapture.set(CV_CAP_PROP_FRAME_WIDTH, 640);
 	videoCapture.set(CV_CAP_PROP_FRAME_HEIGHT, 480);
 	int curIndex = 0;
+	static ifstream getfile;
+	if (!getfile.is_open()) {
+		getfile.open("Rjiao.txt", ios::in);
+	}
+	double Ra, jiao;
+	getfile >> Ra >> jiao;
 	while (1)
 	{
 		videoCapture >> frame;
@@ -102,8 +109,10 @@ DWORD WINAPI getCameraPose(LPVOID lpParameter)
 		else{
 			//while (validCameraPose);
 			if (!validCameraPose){
-			xpos = t.at<double>(0, 0);
-			ypos = t.at<double>(1, 0);
+				//t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
+				//t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
+				xpos = t.at<double>(0, 0) - Ra*cos((w - jiao) / 180 * PI);
+				ypos = t.at<double>(1, 0) - Ra*sin((w - jiao) / 180 * PI);
 			cita = w;
 			validCameraPose = true;
 			}
