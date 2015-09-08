@@ -5,57 +5,48 @@
 #include "calclandmark.h"
 #include <fstream>
 #include <iostream>
+#include <boost/thread/thread.hpp>
+
 USING_NAMESPACE_NEAT_COMMON_ALL();
 
 using namespace std;
 using namespace cv;
 
-DWORD WINAPI motionControl(LPVOID lpParameter);
-DWORD WINAPI getCameraPose(LPVOID lpParameter);
+void motionControl();
+void getCameraPose();
 
 int DataProcessFlag=-1;
 bool validCameraPose = false;
-bool allowNewData = true;
 double xpos=0;
 double ypos=0;
 double cita=0;
+
+boost::mutex curCamPosMutex; //相机得到的位姿
+CurPos curCamPos;
+
+boost::mutex curOdoPosMutex; //Odo得到的位姿
+CurPos curOdoPos;
 
 int main()
 {
 	cout << "记录数据输入0，巡线走输入1，圆标定输入2，其他输入任意数：" << endl;
 	cin >> DataProcessFlag;
-
-	HANDLE handle1, handle2;
-	handle1 = CreateThread(NULL, 0, motionControl, NULL, 0, NULL);
-	handle2 = CreateThread(NULL, 0, getCameraPose, NULL, 0, NULL);
-
-	if (NULL == handle1)
-	{
-		cout << "Create Thread failed !" << endl;
-		return -1;
-	}
-	if (NULL == handle2)
-	{
-		cout << "Create Thread failed !" << endl;
-		return -1;
-	}
-
-	CloseHandle(handle1);
-	CloseHandle(handle2);
-
-	cout << "The Main Thread is Running !" << endl;
+	boost::thread thrMotionControl(motionControl);
+	boost::thread thrGetCameraPose(getCameraPose);
+	thrGetCameraPose.join();
+	thrMotionControl.join();
 
 	system("pause");
 	return 0;
 }
 
-DWORD WINAPI motionControl(LPVOID lpParameter)
+void motionControl()
 {
 	MecanumMotion *mctrl = MecanumMotionObj::Instance();
 
 	mctrl->doMotionControlWithCamera();
 
-	return 0;
+	return;
 }
 
 string num2str(int i){
@@ -64,8 +55,12 @@ string num2str(int i){
 	return s.str();
 }
 
-
-DWORD WINAPI getCameraPose(LPVOID lpParameter)
+inline string double2str(double val){
+	stringstream ss;
+	ss << val;
+	return ss.str();
+}
+void getCameraPose()
 {
 	Mat intrinsic = (Mat_<double>(3, 3) << 199.2101, 0, 303.3105,
 		0, 199.2539, 256.8642,
@@ -89,45 +84,132 @@ DWORD WINAPI getCameraPose(LPVOID lpParameter)
 	}
 	double Ra, jiao;
 	getfile >> Ra >> jiao;
+	CurPos tempPreOdo; //目前原因未明,第一次取值必须要丢弃
+
+	Mat imagePre;
+	CurPos tempPrePreOdo;
+	
+	vector<Point2f> pointsCamera;
+	vector<Point2f> pointsOdo; //for calib
+
 	while (1)
 	{
-		videoCapture >> frame;
-		//frame = imread("2.png");
-		//cv::xphoto::balanceWhite(frame, frame, cv::xphoto::WHITE_BALANCE_SIMPLE);
-		//Mat tempFrame;
-		//resize(frame, tempFrame, Size(frame.cols / 2, frame.rows / 2));
-		//imshow("org", frame);
-		//c = cvWaitKey(5);
-
-		if (++curIndex < 20)
-			continue;
-
-		if (!a.Calc(frame, R, t, w)){
-			cout << "检测失败!" << endl;
-				imwrite((num2str(curIndex) + ".png").c_str(), frame);
-		}
-		else{
-			//while (validCameraPose);
-			if (!validCameraPose){
-				//t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
-				//t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
-				xpos = t.at<double>(0, 0) - Ra*cos((w - jiao) / 180 * PI);
-				ypos = t.at<double>(1, 0) - Ra*sin((w - jiao) / 180 * PI);
-			cita = w;
-			validCameraPose = true;
+		{
+			CurPos tempCurOdo;
+			curOdoPosMutex.lock();
+			tempCurOdo = curOdoPos;
+			curOdoPosMutex.unlock();
+			if (!tempPreOdo.isValid){
+				tempPreOdo = tempCurOdo;
+				continue;
 			}
+			videoCapture >> frame; //得到图形和里程计数据，中间不能有延时
+			if (frame.cols==0||frame.rows==0)
+				continue;
+			if (!tempPrePreOdo.isValid){ //构建pair
+				tempPrePreOdo = tempPreOdo;
+				frame.copyTo(imagePre);
+				continue;
+			}
+			
+			imshow("org", frame);
+			c = cvWaitKey(20);
+			double angleOdo, angle;
+			Mat_<double> RT;
+			if (!a.isCalibed){
+				if (sqrt((tempPreOdo.x - tempPrePreOdo.x)*(tempPreOdo.x - tempPrePreOdo.x)
+					+ (tempPreOdo.y - tempPrePreOdo.y)*(tempPreOdo.y - tempPrePreOdo.y)) < 5){
+					tempPreOdo = tempCurOdo;
+					continue;
+				}
+				if (!a.getRTwithImagePair(imagePre, frame, RT)){
+					cout << "2" << endl;
+					continue;
+				}
+
+				if (sqrt(RT(2)*RT(2) + RT(3)*RT(3)) == 0)
+				{
+					cout << "机器人卡住！！" << endl;
+					continue;
+				}
+
+				angle = acos(RT(0));
+				if (RT(1) < 0)
+					angle *= -1;
+				angle = angle * 180 / 3.1415926;
+				angleOdo = (tempPreOdo.cita - tempPrePreOdo.cita) / 3.1415926 * 180;
+				if (abs(angleOdo)>30)
+				if (angleOdo>0)
+					angleOdo -= 360;
+				else
+					angleOdo += 360;
+
+				if (abs(angle - angleOdo) < 0.5){
+					pointsCamera.push_back(Point2f(RT(2), RT(3)));
+					pointsOdo.push_back(Point2f(tempPreOdo.x - tempPrePreOdo.x,
+						tempPreOdo.y - tempPrePreOdo.y));
+					cout << "增加了一个点！" << endl;
+				}
+				if (pointsCamera.size()>10)
+					a.calibCameraAndOdo(pointsCamera, pointsOdo);
+			}
+			else{
+				if(!a.getRTwithImagePair2Odo(imagePre, frame, RT))
+					continue;
+				angle = acos(RT(0));
+				if (RT(1) < 0)
+					angle *= -1;
+				angle = angle * 180 / 3.1415926;
+				angleOdo = (tempPreOdo.cita - tempPrePreOdo.cita) / 3.1415926 * 180;
+				if (abs(angleOdo)>30)
+				if (angleOdo > 0)
+					angleOdo -= 360;
+				else
+					angleOdo += 360;
+			}
+			//todo
+			Mat value = Mat::zeros(320, 320, CV_8UC3);
+			putText(value, string("Angle:") + double2str(angle) + " "+double2str(angleOdo), Point(0, 50), CV_FONT_HERSHEY_COMPLEX, 1, cvScalar(200, 200, 200, 0));
+			putText(value, string("Trans:") + double2str(RT(2)) + " " + double2str(RT(2)), Point(0, 100), CV_FONT_HERSHEY_COMPLEX, 1, cvScalar(200, 200, 200, 0));
+			putText(value, string("State:") + double2str(a.isCalibed), Point(0, 150), CV_FONT_HERSHEY_COMPLEX, 1, cvScalar(200, 200, 200, 0));
+			imshow("value", value);
+			waitKey(20);
+			
+
+			frame.copyTo(imagePre);
+			tempPrePreOdo = tempPreOdo;
+			tempPreOdo = tempCurOdo;
 		}
 		
-		//imshow("video", frame);
-		//imshow("disvideo", distortframe);
-		
-		if (c == 32){
-			//imwrite((num2str(index) + ".png").c_str(), frame);
-			//++index;
-		}
-		//cout<<int(c)<<endl;
+	//	if (++curIndex < 20)
+	//		continue;
+
+	//	if (!a.Calc(frame, R, t, w)){
+	//		cout << "检测失败!" << endl;
+	//			imwrite((num2str(curIndex) + ".png").c_str(), frame);
+	//	}
+	//	else{
+	//		//while (validCameraPose);
+	//		if (!validCameraPose){
+	//			//t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
+	//			//t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
+	//			xpos = t.at<double>(0, 0) - Ra*cos((w - jiao) / 180 * PI);
+	//			ypos = t.at<double>(1, 0) - Ra*sin((w - jiao) / 180 * PI);
+	//		cita = w;
+	//		validCameraPose = true;
+	//		}
+	//	}
+	//	
+	//	//imshow("video", frame);
+	//	//imshow("disvideo", distortframe);
+	//	
+	//	if (c == 32){
+	//		//imwrite((num2str(index) + ".png").c_str(), frame);
+	//		//++index;
+	//	}
+	//	//cout<<int(c)<<endl;
 		if (c == 27)break;
 	}
 
-	return 0;
+	return;
 }

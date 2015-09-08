@@ -1,6 +1,6 @@
 #README
 
-This project uses visual odormeter to control robot's movement.
+This project uses visual odometer to control robot's movement.
 ****
 We use a very simple method to get robot's  position,a red label and a blue labe by
 using two labels' world position and transformation of world ,camera,image coordinate.

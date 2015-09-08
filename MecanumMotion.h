@@ -13,6 +13,15 @@
 
 USING_NAMESPACE_NEAT_COMMON_ALL();
 
+struct CurPos{
+	double x;
+	double y;
+	double cita;
+	bool isValid; //用于表示当前数据是否有效，使用数据前应对该项进行校验
+	CurPos() :isValid(false), x(0), y(0), cita(0){}
+	CurPos(double x_, double y_, double cita_) :isValid(true), x(x_), y(y_), cita(cita_){}
+};
+
 class MecanumMotion
 {
 public:    

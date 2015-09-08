@@ -45,12 +45,15 @@ namespace cameraMotion{
 	{
 	public:
 
-	
+		bool isCalibed;
 		CalcRTLandmark(Mat KK, Mat DD);
 		bool Calc(Mat image,Mat &R,Mat &t,double &w);
 		~CalcRTLandmark();
-	
+		bool getRTwithImagePair(const cv::Mat &image1, const cv::Mat &image2, cv::Mat &RT);
+		bool calibCameraAndOdo(const std::vector<cv::Point2f> &pointsCamera, const std::vector<cv::Point2f> &pointsOdo);
+		bool getRTwithImagePair2Odo(const cv::Mat &image1, const cv::Mat &image2, cv::Mat &RT);
 	private:
+		double dx, dy, cos_, sin_;
 		Mat intrinsic;
 		Mat distortion;
 		color blue;
@@ -61,6 +64,7 @@ namespace cameraMotion{
 		bool isInitialized;
 		bool findBestPair(const vector<PointCluter> &blueContour, const vector<PointCluter> &redContour, int &indexBlue, int &indexRed, Mat &img);
 		bool loadGMM();
+		bool ransacGetRT(const vector<Point2f> &points1, const vector<Point2f> &points2, Mat &RT, double &projectErr, double inLineThres=-1);
 	};
 }
 #endif
