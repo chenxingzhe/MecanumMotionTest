@@ -444,6 +444,100 @@ int refineCamera(Home_RobotSpeed &cur_speed, Home_Odometer &cur_odo, double x, d
 	return 0;
 
 }
+void goWithOdoAndCam()
+{
+	double x, y, w, x1, y1, w1;
+	double detx, dety, detw, detxc, detyc, detxcc, detycc;
+	double detx1, dety1, detw1, detxc1, detyc1;
+	double fx, fy, fw, fx1, fy1, fw1;
+	double xpos1, ypos1, cita1;
+	neat::Odometer odometerData;
+	odoCap.GetCurOdometry(odometerData);
+	curOdoPosMutex.lock();
+	curOdoPos = CurPos(odometerData.x, odometerData.y, odometerData.angle);
+	curOdoPosMutex.unlock();
+	x = curOdoPos.x;
+	y = curOdoPos.y;
+	w = curOdoPos.cita;
+
+	while (!validCameraPose){ Sleep(1); }
+	x1 = xpos / 10;
+	y1 = ypos / 10;
+	w1 = cita / 180 * PI;
+	validCameraPose = false;
+	while (1)
+	{
+		static ofstream outfile;
+		if (!outfile.is_open()) {
+			cout << "not open" << endl;
+			outfile.open("Compare.txt", ios::out);
+		}
+		
+		if (!validCameraPose){
+			//cout << "无有效数据！" << endl;
+			odoCap.GetCurOdometry(odometerData);
+			curOdoPosMutex.lock();
+			curOdoPos = CurPos(odometerData.x, odometerData.y, odometerData.angle);
+			curOdoPosMutex.unlock();
+			detx = odometerData.x - x;
+			dety = odometerData.y - y;
+			detw = odometerData.angle - w;
+			w = w;
+			detxc = detx*cos(-w) - dety*sin(-w);
+			detyc = detx*sin(-w) + dety*cos(-w);
+			//double jiao = 0.1125;
+			double jiao = 0;
+			detxcc = detxc*cos(w1 + jiao) - detyc*sin(w1 + jiao);
+			detycc = detxc*sin(w1 + jiao) + detyc*cos(w1 + jiao);
+			fx = detxcc + x1;
+			fy = detycc + y1;
+			fw = detw + w1;
+			outfile << fx << '\t' << fy << '\t' << fw * 180 / PI << endl;
+			Sleep(5);
+			continue;
+		}
+		
+		xpos1 = xpos / 10;
+		ypos1 = ypos / 10;
+		cita1 = cita / 180 * PI;
+		detx1 = xpos1 - x1;
+		dety1 = ypos1 - y1;
+		detw1 = cita1 - w1;
+		detxc1 = detx1*cos(-w1) - dety1*sin(-w1);
+		detyc1 = detx1*sin(-w1) + dety1*cos(-w1);
+		if (detw > PI)
+			detw -= 2 * PI;
+		if (detw < -PI)
+			detw += 2 * PI;
+		if (detw1 > PI)
+			detw1 -= 2 * PI;
+		if (detw1 < -PI)
+			detw1 += 2 * PI;
+		/*fx = detxc;
+		fy = detyc;
+		fw = detw;
+		fx1 = detxc1;
+		fy1 = detyc1;
+		fw1 = detw1;*/
+	
+		if (fw > PI)
+			fw -= 2 * PI;
+		if (fw < -PI)
+			fw += 2 * PI;
+		double bili = 0.982;
+		fx1 = xpos1*bili;
+		fy1 = ypos1*bili;
+		fw1 = cita1;
+		
+		
+		outfile << fx1 << '\t' << fy1 << '\t' << fw1 * 180 / PI << endl;
+		validCameraPose = false;
+		Sleep(10);
+		
+
+	}
+	
+}
 void MecanumMotion::doMotionControlWithCamera(){
 
 	Home_RobotSpeed cur_speed;//速度设置
@@ -487,7 +581,8 @@ void MecanumMotion::doMotionControlWithCamera(){
 	cur_speed.set_w(0);
 	SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
 	//cin >> flag;
-
+	if (DataProcessFlag == 3)
+		goWithOdoAndCam();
 	while (DataProcessFlag != 0 && DataProcessFlag != 1 && DataProcessFlag != 2){
 		odoCap.GetCurOdometry(odometerData);
 		curOdoPosMutex.lock();
