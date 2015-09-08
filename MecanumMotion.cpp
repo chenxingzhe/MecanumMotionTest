@@ -49,7 +49,7 @@ extern CurPos curOdoPos;
 //////////////////////////////////////////////////////////////////////////
 // define the module for capture odometer
 COdometerCapture odoCap;
-
+extern bool camOrOdo;
 extern int DataProcessFlag;
 extern bool validCameraPose;
 extern double xpos;
@@ -473,7 +473,7 @@ void goWithOdoAndCam()
 			outfile.open("Compare.txt", ios::out);
 		}
 		
-		if (!validCameraPose){
+		if (camOrOdo){
 			//cout << "无有效数据！" << endl;
 			odoCap.GetCurOdometry(odometerData);
 			curOdoPosMutex.lock();
@@ -493,7 +493,12 @@ void goWithOdoAndCam()
 			fy = detycc + y1;
 			fw = detw + w1;
 			outfile << fx << '\t' << fy << '\t' << fw * 180 / PI << endl;
-			Sleep(5);
+			Sleep(100);
+			continue;
+		}
+		if (!validCameraPose){
+			//cout << "无有效数据！" << endl;
+			Sleep(1);
 			continue;
 		}
 		

@@ -20,6 +20,7 @@ bool validCameraPose = false;
 double xpos=0;
 double ypos=0;
 double cita=0;
+bool camOrOdo = false;
 
 boost::mutex curCamPosMutex; //相机得到的位姿
 CurPos curCamPos;
@@ -188,6 +189,7 @@ void getCameraPose()
 		
 		if (!a.Calc(frame, R, t, w)){
 			cout << "检测失败!" << endl;
+			camOrOdo = true;
 				imwrite((num2str(curIndex) + ".png").c_str(), frame);
 		}
 		else{
@@ -195,6 +197,7 @@ void getCameraPose()
 			if (!validCameraPose){
 				//t.at<double>(0, 0) = t.at<double>(0, 0) - Ra*cos(angle - jiao);
 				//t.at<double>(1, 0) = t.at<double>(1, 0) - Ra*sin(angle - jiao);
+				camOrOdo = false;
 				xpos = t.at<double>(0, 0) - Ra*cos((w - jiao) / 180 * PI);
 				ypos = t.at<double>(1, 0) - Ra*sin((w - jiao) / 180 * PI);
 			cita = w;
