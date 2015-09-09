@@ -119,7 +119,7 @@ bool CalcRTLandmark::findBestPair(const vector<PointCluter> &blueContour, const 
 		return false;
 
 	cout << "µÃ·Ö£º" << matchScore[index2*cluter1.size() + index1] << endl;
-	if (matchScore[index2*cluter1.size() + index1] > 10)
+	if (matchScore[index2*cluter1.size() + index1] > 8)
 		return false;
 	//double maxScore = -1;
 	//int maxIndex = 0;

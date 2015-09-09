@@ -89,7 +89,7 @@ void getCameraPose()
 
 	Mat imagePre;
 	CurPos tempPrePreOdo;
-	
+	Mat picture(500, 500, CV_8UC3, Scalar(255, 255, 255));
 	vector<Point2f> pointsCamera;
 	vector<Point2f> pointsOdo; //for calib
 
@@ -184,13 +184,13 @@ void getCameraPose()
 		videoCapture >> frame; 
 		if (frame.cols == 0 || frame.rows == 0)
 			continue;
-		if (++curIndex < 20)
-			continue;
+		/*if (++curIndex < 20)
+			continue;*/
 		
 		if (!a.Calc(frame, R, t, w)){
-			cout << "¼ì²âÊ§°Ü!" << endl;
+			//cout << "¼ì²âÊ§°Ü!" << endl;
 			camOrOdo = true;
-				imwrite((num2str(curIndex) + ".png").c_str(), frame);
+				//imwrite((num2str(curIndex) + ".png").c_str(), frame);
 		}
 		else{
 			//while (validCameraPose);
@@ -204,6 +204,16 @@ void getCameraPose()
 			validCameraPose = true;
 			}
 		}
+		CurPos tempCurOdo;
+		curOdoPosMutex.lock();
+		tempCurOdo = curOdoPos;
+		curOdoPosMutex.unlock();
+		
+		Point2f a((tempCurOdo.x+1000)/4, (tempCurOdo.y+1000)/4);
+		circle(picture, a, 1, Scalar(255, 0, 0));
+
+		imshow("map", picture);
+		waitKey(10);
 		//c = cvWaitKey(20);
 		//imshow("video", frame);
 		//imshow("disvideo", distortframe);

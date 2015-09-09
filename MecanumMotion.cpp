@@ -34,8 +34,8 @@ using namespace std;
 #endif
 
 #define EPSMEC 10
-#define pp 40
-#define vs 100
+#define pp 20
+#define vs 150
 #define num 3
 double sleeptime = 2.5;
 
@@ -149,18 +149,14 @@ void citaSlowIncrease(Home_RobotSpeed &cur_speed, double w)
 	speedSlowIncrease(cur_speed, 0);
 	}*/
 }
-int bigCita(Home_RobotSpeed &cur_speed, double dw,double w)
+int bigCita(Home_RobotSpeed &cur_speed, double dw)
 {
 	cout << "big cita" << endl; 
-	double detx, dety, detw, detxc, detyc;
-	detw = cita / 180 * PI - w;
-	detxc = detx*cos(-w) - dety*sin(-w);
-	detyc = detx*sin(-w) + dety*cos(-w);
-	if (detw > PI)
-		detw -= 2 * PI;
-	if (detw < -PI)
-		detw += 2 * PI;
-	double detw2 = -(dw - detw);
+	CurPos tempCurOdo;
+	curOdoPosMutex.lock();
+	tempCurOdo = curOdoPos;
+	curOdoPosMutex.unlock();
+	double detw2 = -(dw - tempCurOdo.cita);
 	if (detw2 >= PI)
 		detw2 -= 2 * PI;
 	if (detw2 <= -PI)
@@ -453,17 +449,17 @@ void goWithOdoAndCam()
 	double xpos1, ypos1, cita1;
 	neat::Odometer odometerData;
 	odoCap.GetCurOdometry(odometerData);
-	curOdoPosMutex.lock();
-	curOdoPos = CurPos(odometerData.x, odometerData.y, odometerData.angle);
-	curOdoPosMutex.unlock();
-	x = curOdoPos.x;
-	y = curOdoPos.y;
-	w = curOdoPos.cita;
+	
+	x = odometerData.x;
+	y = odometerData.y;
+	w = odometerData.angle;
 
 	while (!validCameraPose){ Sleep(1); }
 	x1 = xpos / 10;
 	y1 = ypos / 10;
 	w1 = cita / 180 * PI;
+	double e1=0, e2=0, e3=0;
+	int count = 0;
 	validCameraPose = false;
 	while (1)
 	{
@@ -472,26 +468,29 @@ void goWithOdoAndCam()
 			cout << "not open" << endl;
 			outfile.open("Compare.txt", ios::out);
 		}
-		
+		odoCap.GetCurOdometry(odometerData);
+		detx = odometerData.x - x;
+		dety = odometerData.y - y;
+		detw = odometerData.angle - w;
+		detxc = detx*cos(-w) - dety*sin(-w);
+		detyc = detx*sin(-w) + dety*cos(-w);
+		//double jiao = 0.1125;
+		double jiao = 0;
+		detxcc = detxc*cos(w1 + jiao) - detyc*sin(w1 + jiao);
+		detycc = detxc*sin(w1 + jiao) + detyc*cos(w1 + jiao);
+		fx = detxcc + x1+e1;
+		fy = detycc + y1+e2;
+		fw = detw + w1+e3;
+		if (fw > PI)
+			fw -= 2 * PI;
+		if (fw < -PI)
+			fw += 2 * PI;
 		if (camOrOdo){
 			//cout << "无有效数据！" << endl;
-			odoCap.GetCurOdometry(odometerData);
+			count = 0;
 			curOdoPosMutex.lock();
-			curOdoPos = CurPos(odometerData.x, odometerData.y, odometerData.angle);
+			curOdoPos = CurPos(fx, fy, fw);
 			curOdoPosMutex.unlock();
-			detx = odometerData.x - x;
-			dety = odometerData.y - y;
-			detw = odometerData.angle - w;
-			w = w;
-			detxc = detx*cos(-w) - dety*sin(-w);
-			detyc = detx*sin(-w) + dety*cos(-w);
-			//double jiao = 0.1125;
-			double jiao = 0;
-			detxcc = detxc*cos(w1 + jiao) - detyc*sin(w1 + jiao);
-			detycc = detxc*sin(w1 + jiao) + detyc*cos(w1 + jiao);
-			fx = detxcc + x1;
-			fy = detycc + y1;
-			fw = detw + w1;
 			outfile << fx << '\t' << fy << '\t' << fw * 180 / PI << endl;
 			Sleep(100);
 			continue;
@@ -525,16 +524,34 @@ void goWithOdoAndCam()
 		fy1 = detyc1;
 		fw1 = detw1;*/
 	
-		if (fw > PI)
-			fw -= 2 * PI;
-		if (fw < -PI)
-			fw += 2 * PI;
+		
 		double bili = 0.982;
 		fx1 = xpos1*bili;
 		fy1 = ypos1*bili;
 		fw1 = cita1;
 		
-		
+		if (count < 5)
+			count++;
+		else
+		{
+			if (fabs(fx1 - fx)>EPSMEC)
+			{
+				e1 = fx1 - fx;
+			}
+			if (fabs(fy1 - fy) > EPSMEC)
+			{
+				e2 = fy1 - fy;
+			}
+			if (fabs(fw1 - fw) * 180 / PI > EPSMEC)
+			{
+				e3 = fw1 - fw;
+			}
+			cout << "refine" << endl;
+			count = 0;
+		}
+		curOdoPosMutex.lock();
+		curOdoPos = CurPos(fx1, fy1, fw1);
+		curOdoPosMutex.unlock();
 		outfile << fx1 << '\t' << fy1 << '\t' << fw1 * 180 / PI << endl;
 		validCameraPose = false;
 		Sleep(10);
@@ -542,6 +559,259 @@ void goWithOdoAndCam()
 
 	}
 	
+}
+void followRecord(Home_RobotSpeed &cur_speed)
+{
+
+	double x, y, w, x1, y1, w1;
+	double detx, dety, detw, detxc, detyc, detxcc, detycc;
+	double detx1, dety1, detw1, detxc1, detyc1;
+	double fx, fy, fw, fx1, fy1, fw1;
+	double xpos1, ypos1, cita1;
+	bool big = false;
+	neat::Odometer odometerData;
+	odoCap.GetCurOdometry(odometerData);
+
+	x = odometerData.x;
+	y = odometerData.y;
+	w = odometerData.angle;
+
+	while (!validCameraPose){ Sleep(1); }
+	x1 = xpos / 10;
+	y1 = ypos / 10;
+	w1 = cita / 180 * PI;
+	detxc1 = x1;
+	detyc1 = y1;
+	double e1 = 0, e2 = 0, e3 = 0;
+	int count = 0;
+	validCameraPose = false;
+	bool finish = true;
+	double dx, dy, dw;
+	bool kk = false;
+	double prex = 0, prey = 0, prew = 0;
+	double detw2;
+	bool firsttime = true;
+	while (true)
+	{
+		if (finish)
+		{
+
+			static ifstream infile;
+			if (!infile.is_open()) {
+				infile.open("Compare.txt", ios::in);
+			}
+			cout << "读取数据" << endl;
+			if (!(infile >> dx >> dy >> dw))
+			{
+				cout << "end" << endl;
+				infile.close();
+				infile.open("Compare.txt", ios::in);
+				infile >> dx >> dy >> dw;
+				firsttime = false;
+				
+			}
+			if (firsttime)
+			{
+				prex = dx;
+				prey = dy;
+				prew = dw;
+				firsttime = false;
+			}
+			else
+			{
+				if (fabs(prex - dx) > EPSMEC*3 || fabs(prey - dy) > EPSMEC*3 || fabs(prew - dw) > EPSMEC*3)
+				{
+					finish = true;
+					continue;
+				}
+				prex = dx;
+				prey = dy;
+				prew = dw;
+					
+			}
+			dw = dw / 180 * PI;
+			kk = true;
+			if (fabs(detxc1 - dx) < EPSMEC * num && fabs(detyc1 - dy) < EPSMEC * num )
+			{
+				finish = true;
+				continue;
+			}
+			finish = false;
+		}
+		odoCap.GetCurOdometry(odometerData);
+		detx = odometerData.x - x;
+		dety = odometerData.y - y;
+		detw = odometerData.angle - w;
+		detxc = detx*cos(-w) - dety*sin(-w);
+		detyc = detx*sin(-w) + dety*cos(-w);
+		//double jiao = 0.1125;
+		double jiao = 0;
+		detxcc = detxc*cos(w1 + jiao) - detyc*sin(w1 + jiao);
+		detycc = detxc*sin(w1 + jiao) + detyc*cos(w1 + jiao);
+		fx = detxcc + x1 + e1;
+		fy = detycc + y1 + e2;
+		fw = detw + w1 + e3;
+		if (fw > PI)
+			fw -= 2 * PI;
+		if (fw < -PI)
+			fw += 2 * PI;
+		if (camOrOdo){
+			//cout << "无有效数据！" << endl;
+			count = 0;
+			curOdoPosMutex.lock();
+			curOdoPos = CurPos(fx, fy, fw);
+			curOdoPosMutex.unlock();
+			Sleep(100);
+		}
+		else
+		{
+			if (!validCameraPose){
+				//cout << "无有效数据！" << endl;
+				Sleep(1);
+				continue;
+			}
+
+			xpos1 = xpos / 10;
+			ypos1 = ypos / 10;
+			cita1 = cita / 180 * PI;
+			double bili = 0.982;
+			fx1 = xpos1*bili;
+			fy1 = ypos1*bili;
+			fw1 = cita1;
+
+			if (count < 10)
+				count++;
+			else
+			{
+				if (fabs(fx1 - fx)>EPSMEC)
+				{
+					e1 = fx1 - fx;
+				}
+				if (fabs(fy1 - fy) > EPSMEC)
+				{
+					e2 = fy1 - fy;
+				}
+				if (fabs(fw1 - fw) * 180 / PI > EPSMEC)
+				{
+					e3 = fw1 - fw;
+				}
+				cout << "refine" << endl;
+				count = 0;
+			}
+			curOdoPosMutex.lock();
+			curOdoPos = CurPos(fx1, fy1, fw1);
+			curOdoPosMutex.unlock();
+			validCameraPose = false;
+		}
+		
+		
+		CurPos tempCurOdo;
+		curOdoPosMutex.lock();
+		tempCurOdo = curOdoPos;
+		curOdoPosMutex.unlock();
+		detxc1 = tempCurOdo.x;
+		detyc1 = tempCurOdo.y;
+		double vx = dx - detxc1;
+		double vy = dy - detyc1;
+		double dw2 = 0;
+		if (vx > 0 && vy > 0)
+			dw2 = atan(fabs(vy / vx));
+		else if (vx<0 && vy > 0)
+			dw2 = PI - atan(fabs(vy / vx));
+		else if (vx > 0 && vy < 0)
+			dw2 = -atan(fabs(vy / vx));
+		else if (vx < 0 && vy < 0)
+			dw2 = atan(fabs(vy / vx)) - PI;
+		if (vx == 0 && vy>0)
+			dw2 = PI / 2;
+		if (vx == 0 && vy < 0)
+			dw2 = -PI / 2;
+		detw2 = -(dw2 - tempCurOdo.cita);//走斜边
+		//double detw2 = -(dw - detw1);//按照里程计走
+		if (detw2 >= PI)
+			detw2 -= 2 * PI;
+		if (detw2 <= -PI)
+			detw2 += 2 * PI;
+		if (fabs(detw2 * 180 / PI) > EPSMEC * 3)
+		{
+			big = true;
+			cout << "bigcita" << endl;
+		}
+		if (fabs(detxc1 - dx) < EPSMEC&&fabs(detyc1 - dy) < EPSMEC)
+		{
+			finish = true;
+			big = false;
+		}
+		else
+		{
+
+
+			cout << "误差：" << fabs(detxc1 - dx) << " " << fabs(detyc1 - dy) << " " << fabs(detw2 * 180 / PI) << endl;
+			//cout << "dx:" << dx << "dy:" << dy << "detxc1:" << detxc1 << "detyc1:" << detyc1;
+
+			//||fabs(detxc - dx) > EPS*10||fabs(detyc - dy) > EPS*10
+			if (fabs(detxc1 - dx) > EPSMEC * (num + 1) || fabs(detyc1 - dy) > EPSMEC * (num + 1))
+			{
+
+				/*
+				cur_speed.set_vx(0);
+				cur_speed.set_vy(0);
+				cur_speed.set_w(0);
+				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);
+				*/
+				cout << "给跪给跪" << endl;
+				if (kk == false)
+				{
+					finish = true;
+				}
+				kk = false;
+
+
+				//cout << "error" << endl;
+				//finish = true;
+				//continue;
+			}
+			if (fabs(detw2 * 180 / PI) < EPSMEC / 3)
+			{
+				//不能使用detxc - dx的正负判断~
+				big = false;
+				speedSlowIncrease(cur_speed, vs);
+				/*cur_speed.set_vx(vs);
+				cur_speed.set_vy(0);
+				cur_speed.set_w(0);
+				SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
+
+
+
+			}
+			else
+			{
+
+				if (big)
+					worldv = 0;
+				if (detw2 < 0)
+				{
+					/*cur_speed.set_vx(0);
+					cur_speed.set_vy(0);
+					cur_speed.set_w(PI / 20);
+					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
+					citaSlowIncrease(cur_speed, PI / pp);
+
+				}
+				else
+				{
+					/*cur_speed.set_vx(0);
+					cur_speed.set_vy(0);
+					cur_speed.set_w(-PI / 20);
+					SubPubManager::Instance()->m_robotspeed.GetPublisher()->publish(cur_speed);*/
+					citaSlowIncrease(cur_speed, -PI / pp);
+				}
+
+			}
+		}
+		validCameraPose = false;
+	}
+
 }
 void MecanumMotion::doMotionControlWithCamera(){
 
@@ -588,6 +858,8 @@ void MecanumMotion::doMotionControlWithCamera(){
 	//cin >> flag;
 	if (DataProcessFlag == 3)
 		goWithOdoAndCam();
+	if (DataProcessFlag == 1)
+		followRecord(cur_speed);
 	while (DataProcessFlag != 0 && DataProcessFlag != 1 && DataProcessFlag != 2){
 		odoCap.GetCurOdometry(odometerData);
 		curOdoPosMutex.lock();
@@ -836,7 +1108,7 @@ void MecanumMotion::doMotionControlWithCamera(){
 					Sleep(1);
 					continue;
 				}
-				int flag = bigCita(cur_speed, dw2, w1);
+				int flag = bigCita(cur_speed, dw2);
 				validCameraPose = false;
 				if (flag)
 					break;
